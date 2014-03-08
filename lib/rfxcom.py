@@ -59,6 +59,19 @@ RECEIVER_TRANSCEIVER = {
   "0x5B" : "868.95MHz",
 }
 
+TYPE_20_MODELS = {
+  "0x00" : "X10 security door/window sensor",
+  "0x01" : "X10 security motion sensor",
+  "0x02" : "X10 security remote (no alive packets)",
+  "0x03" : "KD101 (no alive packets)",
+  "0x04" : "Visonic PowerCode door/window sensor – primary contact (with alive packets)",
+  "0x05" : "Visonic PowerCode motion sensor (with alive packets)",
+  "0x06" : "Visonic CodeSecure (no alive packets)",
+  "0x07" : "Visonic PowerCode door/window sensor – auxiliary contact (no alive packets)",
+  "0x08" : "Meiantech",
+  "0x09" : "SA30 (no alive packets)"
+}
+
 TYPE_50_MODELS = {
   "0x01" : "THR128/138, THC138",
   "0x02" : "THC238/268,THN132,THWR288,THRN122,THN122,AW129/131",
@@ -492,7 +505,103 @@ class Rfxcom:
         self.log.info("- Protocol > X10                         : {0}".format(get_bit(msg5, 0)))
 
 
+    def _process_20(self, data):
+        """ Type 0x20, Security1
+        
+            Type : command/sensor
+            SDK version : 4.12
+            Tested : No
+        """
+        COMMAND = {"00" : "normal",
+                   "01" : "normal-delayed",
+                   "02" : "alert",
+                   "03" : "alert-delayed",
+                   "04" : "motion",
+                   "05" : "motion-delayed",
+                   "06" : "panic",
+                   "07" : "end-panic",
+                   "08" : "tamper",
+                   "09" : "arm-away",
+                   "0a" : "arm-away-delayed",
+                   "0b" : "arm-home",
+                   "0c" : "arm-home-delayed",
+                   "0d" : "disarm",
+                   # like for the RFXCOM Lan xPL, the lights-on|off command will only command the light1
+                   "10" : "lights-off",   # light 1
+                   "11" : "lights-on",
+                   "12" : "lights-off",   # light 2
+                   "13" : "lights-on",
+                   "14" : "dark-detected",
+                   "15" : "light-detected",
+                   "16" : "battery-low",
+                   "17" : "pair-kd101",
+                   "80" : "normal-tamper",
+                   "81" : "normal-delayed-tamper",
+                   "82" : "alert-tamper",
+                   "83" : "alert-delayed-tamper",
+                   "84" : "motion-tamper",
+                   "85" : "motion-delayed-tamper",                  }
 
+        options = {}
+        subtype = gh(data, 1)
+        seqnbr = gh(data, 2)
+        id = gh(data, 3,3)
+        address = "0x%s" %(id)
+
+        status = COMMAND[gh(data, 6)]
+        
+        if status[-7:] == "-tamper":
+            cmnd = "alert"
+            options["tamper"] = "true"
+            status = status[:-7]
+
+        if status[-8:] == "-delayed":
+            cmnd = status[0:-8]
+            options["delay"] = "max"
+        else:
+            cmnd = status
+        if status == "battery-low":
+            cmnd = "alert"
+            options["low-battery"] = "true"
+        if status == "tamper":
+            cmnd = "alert"
+            options["tamper"] = "true"
+  
+        battery = int(gh(data, 7)[0], 16) * 10  # percent
+        rssi = int(gh(data, 7)[1], 16) * 100/16 # percent
+        
+        model = "{0}".format(TYPE_20_MODELS["0x{0}".format(subtype)])
+        
+        self.log.debug("Packet informations :")
+        self.log.debug("- type 20 : Security1")
+        self.log.debug("- address = {0}".format(address))
+        self.log.debug("- command = {0}".format(cmnd))
+        self.log.debug("- options = {0}".format(','.join(['%s:%s' % (key, value) for (key, value) in options.items()])))
+        self.log.debug("- battery = {0}".format(battery))
+        self.log.debug("- rssi = {0}".format(rssi))
+        msg = {"device"  : address,
+               "command" : cmnd}
+        msg.update(options)
+        self.cb_send_xpl(schema = "x10.security",
+                         data = msg)
+
+        self.cb_send_xpl(schema = "sensor.basic",
+                         data = {"device"  : address,
+                                 "type"    : "battery",
+                                 "current" : battery})
+
+        self.cb_send_xpl(schema = "sensor.basic",
+                         data = {"device"  : address,
+                                 "type"    : "rssi",
+                                 "current" : rssi})
+
+        for feature in ['Security1']:
+            self.cb_device_detected(device_type = "rfxcom.security",
+                                    type = "xpl_stats",
+                                    feature = feature,
+                                    data = {"device" : address,
+                                            "reference" : model})
+        return
 
     def _process_50(self, data):
         """ Temperature sensors
