@@ -344,6 +344,20 @@
                 "expire": 0,
                 "round_value": 0
             }
+        },
+        "command": {
+            "name": "Sensor status",
+            "incremental": false,
+            "data_type": "DT_String",
+            "conversion": "",
+            "history": {
+                "store": true,
+                "duplicate": false,
+                "expire": 0,
+                "max": 0,
+                "expire": 0,
+                "round_value": 0
+            }
         }
     },
     "xpl_stats": {
@@ -455,6 +469,21 @@
                     "key": "device",
                     "xpl" : true,
                     "description": "Device address. Example: th9 0xFFFF",
+                    "type": "string"
+                }
+            ]
+        },
+        "rfxcom.security": {
+            "description": "",
+            "id": "rfxcom.security",
+            "name": "Security sensors",
+            "commands": [],
+            "sensors": ["command", "battery", "rssi"],
+            "parameters": [
+                {
+                    "key": "device",
+                    "xpl" : true,
+                    "description": "Device address. Example: 0x11ec11",
                     "type": "string"
                 }
             ]
